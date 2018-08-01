@@ -296,7 +296,7 @@ export default class {
          * @link https://developers.facebook.com/docs/messenger-platform/webhook-reference/message-read
          *
          */
-        receivedMessageRead(event){
+        receivedMessageRead(event, callback){
             var senderID = event.sender.id;
             var recipientID = event.recipient.id;
 
@@ -534,6 +534,7 @@ export default class {
                     }
                 }
             };
+            console.log('Sendging File message');
             this.callSendAPI(messageData,true);
         }
 
@@ -667,7 +668,7 @@ export default class {
                 }
             };
 
-            callSendAPI(messageData);
+            this.callSendAPI(messageData);
         }
 
         /** Call the Send API.
@@ -677,11 +678,14 @@ export default class {
          * 
          * @param {*} messageData 
          */
-        callSendAPI(messageData, attach){
+        callSendAPI(messageData, attach = false){
             console.log('Message DATA');
             console.log(JSON.stringify(messageData));
+            console.log('Attachment ? : ' + attach);
+            let url = attach ? this.constants.graphMsAttURL : this.constants.graphMsgURL;
+            console.log('URL Request: ' + this.constants.graphMsgURL);
             request({
-                uri: attach ? this.constants.graphMsAttURL : this.constants.graphMsgURL,
+                uri: this.constants.graphMsgURL,
                 qs: {
                     access_token: this.constants.pageToken
                 },
@@ -701,7 +705,9 @@ export default class {
                             recipientId);
                     }
                 } else {
-                    console.error("Failed calling Send API", response.statusCode, response.statusMessage, body.error);
+                    console.log("Failed calling Send API");
+                    console.log(JSON.stringify(response.body));
+                    // console.error("Failed calling Send API", response.statusCode, response.statusMessage, body.error);
                 }
             });
         }

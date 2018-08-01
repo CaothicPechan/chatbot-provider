@@ -76,6 +76,7 @@ export default class {
             this.response.status = 'error';
             this.response.payload = `An error ocurred on setting fb service function: start() --- Error: ${err}`;
             callback(this.response);
+            return;
         }    
     }
 
@@ -141,6 +142,7 @@ export default class {
             this.response.status = 'error';
             this.response.payload = `An error ocurred on function: handleResponse() --- Error: ${err}`;
             callback(this.response);
+            return;
         }
     }
 
@@ -156,6 +158,7 @@ export default class {
     handleFbEvent(event, callback) {
         
         console.log('Handling fb event...');
+        console.log(JSON.stringify(event));
 
         let senderID = {};
 
@@ -168,9 +171,24 @@ export default class {
             this.response.status = 'error';
             this.response.payload = `An error ocurred trying set session function: handleFBEvent() --- Error: ${err}`;
             callback(this.response);
+            return;
         }
         
         try{
+            let payload = {};
+            
+
+            if(event.read){
+                payload = 
+                {
+                    type: 'read',
+                    senderID: senderID,
+                    read: event.read
+                };                
+                this.response.payload = payload;
+                callback(this.response);
+                return;
+            }
 
             var recipientID = event.recipient.id;
             var timeOfMessage = event.timestamp;
@@ -190,12 +208,10 @@ export default class {
             var messageAttachments = message.attachments;
             var quickReply = message.quick_reply;
 
-            this.fbService.sendTypingOn(senderID);
-
             this.response.code = 200;
             this.response.status = 'success';
             
-            let payload = 
+            payload = 
                 {
                     type: '',
                     senderID: senderID,
@@ -211,6 +227,8 @@ export default class {
                 // this.fbService.handleEcho(messageId, appId, metadata);
                 return;
             } else if (quickReply) {
+                this.fbService.sendTypingOn(senderID);
+
                 payload.type = 'quickReply';
                 payload.quickReply = quickReply;
                 this.response.payload = payload;
@@ -219,7 +237,8 @@ export default class {
                 return;
             }
 
-
+            this.fbService.sendTypingOn(senderID);
+            
             if (messageText) {
                 this.dfService.sendTextQueryToApiAi(this.sessionIds, this.handleDfResponse, senderID, messageText, callback);
             } else if (messageAttachments) {
@@ -227,6 +246,7 @@ export default class {
                 payload.attachments = messageAttachments;
                 this.response.payload = payload;
                 callback(this.response);
+                return;
             }            
         
         }catch(err){
@@ -301,6 +321,7 @@ export default class {
             // this.fbService.handleMessages(messages, sender);
             if(callback){
                 callback(this.response);
+                return;
             }else{
                 return;
             }
@@ -312,6 +333,7 @@ export default class {
             this.response.payload = `An error ocurred function: handleDfResponse() --- Error: ${err}`;
             if(callback){
                 callback(this.response);
+                return;
             }else{
                 return;
             }
@@ -358,6 +380,7 @@ export default class {
                     break;
                 }
                 case 'echo':{
+                    console.log('Echo recieved');
                     /* PENDING */
                     // this.fbService.handleEcho(response.payload.messageId, response.payload.appId, response.payload.metadata);
                     break;
