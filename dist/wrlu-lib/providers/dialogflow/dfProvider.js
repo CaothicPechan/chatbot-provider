@@ -34,38 +34,50 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
  * @argument {String} googleProjectId           Google ID Project for using as a key to 
  *                                              auth on DialogFlow API.
  * 
- * @argument {fbProvider Object} fbService      FbService Object to get access to Facebook 
- *                                              messenger APIs/ Declare on this lib as 
- *                                              "fbProvider" Module.
+ * @argument {String} clientEmail               Email using on google cloud (service account)
+ *                                              for setting dialogflow project
+ * 
+ * @argument {String} privateKey                Private key from google credentials for the
+ *                                              DialogFlow project
  * 
  * @argument {String} languageCode              Language Code for using on DialogFlow
  *                                              default "en-US"
  */
 
 var _class = function () {
-    function _class(googleProjectId, fbService) {
-        var languageCode = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 'en-US';
+    function _class(googleProjectId, clientEmail, privateKey) {
+        var languageCode = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : 'en-US';
 
         _classCallCheck(this, _class);
 
+        var credentials = {
+            client_email: clientEmail,
+            private_key: privateKey
+        };
+
         this.googleProjectId = googleProjectId;
+        this.clientEmail = clientEmail;
+        this.privateKey = privateKey;
         this.languageCode = languageCode;
-        this.sessionClient = new _dialogflow2.default.SessionsClient();
+        this.sessionClient = new _dialogflow2.default.SessionsClient({
+            projectId: googleProjectId,
+            credentials: credentials
+        });
 
-        this.fbService = fbService ? fbService : null;
-
-        this.sendTextQueryToApiAi = this.sendEventToApiAi.bind(this);
+        this.sendTextQueryToApiAi = this.sendTextQueryToApiAi.bind(this);
         this.sendEventToApiAi = this.sendEventToApiAi.bind(this);
     }
 
     /** Send a text query to DialogFlow API
      * 
      * 
-     * @method sendTextQueryToApiAi()           
+     * @method sendTextQueryToApiAi()          
+     *  
      * @param {String} sessionIds               Ids for actual session for send to API
      * @param {Function} handleApiAiResponse    CallBack for handle response
      * @param {*} sender                        Sender identifier
      * @param {String} text                     Simple text to send
+     * @param {Function} callback               Function for returning callback on future life wrlu-ciclyng life
      * @param {Object} params                   API params
      * 
      * @returns callback handleApiAiResponse()
@@ -74,17 +86,14 @@ var _class = function () {
 
 
     _class.prototype.sendTextQueryToApiAi = function () {
-        var _ref = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee(sessionIds, handleApiAiResponse, sender, text) {
-            var params = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : {};
+        var _ref = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee(sessionIds, handleApiAiResponse, sender, text, callback) {
+            var params = arguments.length > 5 && arguments[5] !== undefined ? arguments[5] : {};
             var sessionPath, request, responses, result;
             return regeneratorRuntime.wrap(function _callee$(_context) {
                 while (1) {
                     switch (_context.prev = _context.next) {
                         case 0:
-                            sessionPath = sessionClient.sessionPath(this.googleProjectId, sessionIds.get(sender));
-
-                            this.fbService.sendTypingOn(sender);
-
+                            sessionPath = this.sessionClient.sessionPath(this.googleProjectId, sessionIds.get(sender));
                             request = {
                                 session: sessionPath,
                                 queryInput: {
@@ -99,17 +108,26 @@ var _class = function () {
                                     }
                                 }
                             };
-                            _context.next = 5;
-                            return sessionClient.detectIntent(request);
+                            _context.next = 4;
+                            return this.sessionClient.detectIntent(request);
 
-                        case 5:
+                        case 4:
                             responses = _context.sent;
                             result = responses[0].queryResult;
 
+                            if (!callback) {
+                                _context.next = 10;
+                                break;
+                            }
 
-                            handleApiAiResponse(sender, result);
+                            handleApiAiResponse(sender, result, callback);
+                            _context.next = 11;
+                            break;
 
-                        case 8:
+                        case 10:
+                            return _context.abrupt('return', handleApiAiResponse(sender, result));
+
+                        case 11:
                         case 'end':
                             return _context.stop();
                     }
@@ -117,7 +135,7 @@ var _class = function () {
             }, _callee, this);
         }));
 
-        function sendTextQueryToApiAi(_x2, _x3, _x4, _x5) {
+        function sendTextQueryToApiAi(_x2, _x3, _x4, _x5, _x6) {
             return _ref.apply(this, arguments);
         }
 
@@ -128,11 +146,13 @@ var _class = function () {
      * 
      * 
      * @method sendEventToApiAi()
+     * 
      * @param {String} sessionIds                   Ids for actual session for send to API
      * @param {Function} handleApiAiResponse        CallBack for handle response
      * @param {*} sender                            Sender identifier
      * @param {Event} event                         Event to send
      * @param {Object} params                       API params
+     * @param {Function} callback                   Callback for life-ciclyng
      * 
      * @returns callback handleApiAiResponse()
      * 
@@ -140,32 +160,32 @@ var _class = function () {
 
 
     _class.prototype.sendEventToApiAi = function () {
-        var _ref2 = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee2(sessionIds, handleApiAiResponse, sender, event) {
-            var params = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : {};
+        var _ref2 = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee2(sessionIds, handleApiAiResponse, sender, event, callback) {
+            var params = arguments.length > 5 && arguments[5] !== undefined ? arguments[5] : {};
             var sessionPath, request, responses, result;
             return regeneratorRuntime.wrap(function _callee2$(_context2) {
                 while (1) {
                     switch (_context2.prev = _context2.next) {
                         case 0:
-                            sessionPath = sessionClient.sessionPath(this.googleProjectId, sessionIds.get(sender));
+                            sessionPath = this.sessionClient.sessionPath(this.googleProjectId, sessionIds.get(sender));
                             request = {
                                 session: sessionPath,
                                 queryInput: {
                                     event: {
                                         name: event,
-                                        parameters: this.structjson.jsonToStructProto(params), //Dialogflow's v2 API uses gRPC. You'll need a jsonToStructProto method to convert your JavaScript object to a proto struct.
+                                        parameters: _structjson2.default.jsonToStructProto(params), //Dialogflow's v2 API uses gRPC. You'll need a jsonToStructProto method to convert your JavaScript object to a proto struct.
                                         languageCode: this.languageCode
                                     }
                                 }
                             };
                             _context2.next = 4;
-                            return sessionClient.detectIntent(request);
+                            return this.sessionClient.detectIntent(request);
 
                         case 4:
                             responses = _context2.sent;
                             result = responses[0].queryResult;
 
-                            handleApiAiResponse(sender, result);
+                            handleApiAiResponse(sender, result, callback);
 
                         case 7:
                         case 'end':
@@ -175,7 +195,7 @@ var _class = function () {
             }, _callee2, this);
         }));
 
-        function sendEventToApiAi(_x7, _x8, _x9, _x10) {
+        function sendEventToApiAi(_x8, _x9, _x10, _x11, _x12) {
             return _ref2.apply(this, arguments);
         }
 
