@@ -26,9 +26,11 @@ import { sleep } from '../../utils/utils'
 
 export default class {
 
-    constructor(graphMsgURL, pageToken, appSecret, verifyToken, webhookUri = '/webhook/'){
+    constructor(graphGlobalURL, graphMsgURL, pageToken, appSecret, verifyToken, webhookUri = '/webhook/'){
         this.constants = {};
+        this.constants.graphGlobalURL = graphGlobalURL;
         this.constants.graphMsgURL = `${graphMsgURL}messages`
+        this.constants.graphProfileURL = `${graphMsgURL}messenger_profile`
         this.constants.graphMsAttURL = `${graphMsgURL}message_attachments`
         this.constants.pageToken = pageToken;
         this.constants.appSecret = appSecret;
@@ -58,6 +60,7 @@ export default class {
         this.sendAccountLinking = this.sendAccountLinking.bind(this);
 
         this.verifyRequestSignature = this.verifyRequestSignature.bind(this);
+        this.getUserInfo = this.getUserInfo.bind(this);
 
     }
 
@@ -260,39 +263,6 @@ export default class {
             }catch(err){
                 console.log(`FbProvider: An error ocurred on handling card messages. Error: ${err}`);
             }
-
-            // for (var m = 0; m < messages.length; m++) {
-            //     let message = messages[m];
-        
-            //     let buttons = [];
-            //     for (var b = 0; b < message.card.buttons.length; b++) {
-            //         let isLink = (message.card.buttons[b].postback.substring(0, 4) === 'http');
-            //         let button;
-            //         if (isLink) {
-            //             button = {
-            //                 "type": "web_url",
-            //                 "title": message.card.buttons[b].text,
-            //                 "url": message.card.buttons[b].postback
-            //             }
-            //         } else {
-            //             button = {
-            //                 "type": "postback",
-            //                 "title": message.card.buttons[b].text,
-            //                 "payload": message.card.buttons[b].postback
-            //             }
-            //         }
-            //         buttons.push(button);
-            //     }
-        
-        
-            //     let element = {
-            //         "title": message.card.title,
-            //         "image_url":message.card.imageUri,
-            //         "subtitle": message.card.subtitle,
-            //         "buttons": buttons
-            //     };
-            //     elements.push(element);
-            // }
             
         }
 
@@ -579,7 +549,41 @@ export default class {
             this.callSendAPI(messageData);
         }
 
+        /** Send List Message
+         * 
+         * @description https://developers.facebook.com/docs/messenger-platform/send-messages/template/list
+         * 
+         * @param {*}       receiptId 
+         * @param {Array}   elements 
+         * @param {String}  topStyle
+         * @param {Array}   buttons
+         */
+        sendListMessage(receiptId, elements, topStyle, buttons){
+
+            var messageData = {
+                receipt:{
+                    id: recipientId
+                },
+                message:{
+                    attachment:{
+                        type: 'template',
+                        payload:{
+                            template_type: 'list',
+                            top_element_style: topStyle,
+                            elements: elements
+
+                        }
+                    }
+                },
+                buttons: buttons
+            };
+
+            this.callSendAPI(messageData);
+        }
+
         /** Send Generic Message
+         * 
+         * @description https://developers.facebook.com/docs/messenger-platform/send-messages/template/generic
          * 
          * @param {*} recipientId 
          * @param {*} elements 
@@ -717,4 +721,109 @@ export default class {
                 }
             });
         }
+
+    /** User Facebook methods
+     * 
+     * @description Functions for getting information about the user by Fb Graph API
+     * @link https://developers.facebook.com/docs/graph-api/reference/user/
+     * @link https://developers.facebook.com/docs/graph-api/using-graph-api/
+     */
+        /** Get User info
+         * 
+         * @param {String}  senderID
+         */
+        getUserInfo(senderID, callback){
+
+            console.log('fbProvider: Calling User service');
+
+            request({
+                uri: this.constants.graphGlobalURL + senderID,
+                qs: {
+                    access_token: this.constants.pageToken
+                },
+
+            },(error, response, body) => {
+                if (!error && response.statusCode == 200) {
+                    var user = JSON.parse(body);
+
+                    
+                    this.wrResponse.status = 'success';
+                    this.wrResponse.code = 200;
+                    this.wrResponse.origin = 'facebook';
+                    this.wrResponse.payload = user;
+
+                    if(callback){
+                        callback(this.wrResponse);
+                    }else{
+                        return this.wrResponse;
+                    }
+                   
+                } else {
+                    this.wrResponse.status = 'error';
+                    this.wrResponse.code = response.statusCode;
+                    this.wrResponse.origin = 'fbProvider';
+                    this.wrResponse.payload = response.body;
+
+                    if(callback){
+                        callback(this.wrResponse);
+                    }else{
+                        return this.wrResponse;
+                    }
+                    console.log("FbProvider: Failed calling user service");
+                    console.log(JSON.stringify(response.body));
+                }
+            });
+
+        }
+
+    /** Utilities Facebook methods 
+     * 
+     * @description Functions for set utilities on your chatbot, like set a persistent menu
+     *              greetings or get started button. Profile facebook API.
+     * @link https://developers.facebook.com/docs/messenger-platform/reference/messenger-profile-api/greeting
+     * 
+    */
+        setProfileConfig(settings, callback){
+            console.log(`fbProvider: Setting profile service. Settings: ${JSON.parse(settings)}`);
+
+            request({
+                uri: this.constants.graphProfileURL,
+                qs: {
+                    access_token: this.constants.pageToken
+                },
+                method: 'POST',
+                json: settings
+
+            },(error, response, body) => {
+                if (!error && response.statusCode == 200) {
+                    var res = body;
+
+                    this.wrResponse.status = 'success';
+                    this.wrResponse.code = 200;
+                    this.wrResponse.origin = 'fbProvider';
+                    this.wrResponse.payload = res;
+
+                    if(callback){
+                        callback(this.wrResponse);
+                    }else{
+                        return this.wrResponse;
+                    }
+                   
+                } else {
+                    this.wrResponse.status = 'error';
+                    this.wrResponse.code = response.statusCode;
+                    this.wrResponse.origin = 'fbProvider';
+                    this.wrResponse.payload = response.body;
+
+                    if(callback){
+                        callback(this.wrResponse);
+                    }else{
+                        return this.wrResponse;
+                    }
+                    console.log("FbProvider: Failed calling profile service");
+                    console.log(JSON.stringify(response.body));
+                }
+            });
+        }
+    
 }

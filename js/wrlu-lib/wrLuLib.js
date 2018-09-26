@@ -34,7 +34,8 @@ import { globalResponse } from './models/commonObjects'
  *                                  verifyToken: '',
  *                                  appID: '',
  *                                  appSecret: '',
- *                                  graphMsgURL: 'https://graph.facebook.com/v2.6/me/messages'
+ *                                  graphGlobalURL: '', https://graph.facebook.com/v2.6/
+ *                                  graphMsgURL: ' https://graph.facebook.com/v2.6/me/messages'
  *                              },
  *                              gcp:{
  *                                  projectId: '',
@@ -50,7 +51,7 @@ import { globalResponse } from './models/commonObjects'
 export default class {
     constructor(app, config){
         this.app = app;
-        this.fbService = new fbProvider(config.fb.graphMsgURL, config.fb.pageToken, config.fb.appSecret, config.fb.verifyToken);
+        this.fbService = new fbProvider(config.fb.graphGlobalURL, config.fb.graphMsgURL, config.fb.pageToken, config.fb.appSecret, config.fb.verifyToken);
         this.dfService = new dfProvider(config.gcp.projectId, config.gcp.clientEmail, config.gcp.privateKey, config.gcp.languageCode);
         this.sessionIds = new Map();
         this.response = globalResponse;
@@ -74,9 +75,56 @@ export default class {
     start(app, callback){
         try{
             this.fbService.setWebhook(app, (res) => {
-                this.handleResponse(res, callback);
-                
-            });    
+                this.handleResponse(res, callback); 
+            });
+
+            let grets = {
+                greeting:[
+                    {
+                      locale:"default",
+                      text:"¡Hola {{user_first_name}}! Soy wrLu, bienvenido"
+                    }
+                ]
+            };
+
+            let getStart = { 
+                get_started:{
+                  payload:"Comenzar"
+                }
+            };
+
+            let persistent_menu = 
+            {
+                persistent_menu:[
+                  {
+                    locale:"default",
+                    call_to_actions:[
+                      {
+                        title:"Comunes",
+                        type:"nested",
+                        call_to_actions:[
+                          {
+                            title:"Productos",
+                            type:"postback",
+                            payload:"Productos"
+                          },
+                          {
+                            type:"web_url",
+                            title:"Latest News",
+                            url:"https://www.messenger.com/",
+                            webview_height_ratio:"full"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+            };
+  
+            // this.fbService.setProfileConfig(persistent_menu,(res) => {
+            //     console.log(`Response profile: ${JSON.stringify(res)}`);
+            // });   
+
         }catch(err){
             this.response.code = 500;
             this.response.status = 'error';
@@ -180,12 +228,24 @@ export default class {
         try{
             let payload = {};
             
+            this.response.code = 200;
+            this.response.status = 'success';
+            this.response.origin = 'fbEvent';
 
             if(event.read){
                 payload = {
                     type: 'read',
                     senderID: senderID,
                     read: event.read
+                };                
+                this.response.payload = payload;
+                callback(this.response);
+                return;
+            }else if(event.postback){
+                payload = {
+                    type: 'postback',
+                    senderID: senderID,
+                    data: event.postback.payload
                 };                
                 this.response.payload = payload;
                 callback(this.response);
@@ -231,10 +291,6 @@ export default class {
                     metadata: metadata
                 };                
             }
-
-            this.response.code = 200;
-            this.response.status = 'success';
-            this.response.origin = 'fbEvent';
 
             if (isEcho) {
                 payload.type = 'echo';
@@ -394,6 +450,12 @@ export default class {
                 case 'messages':{
                     this.fbService.handleMessages(response.payload.messages, response.payload.sender);
                     return;
+                    break;
+                }
+                case 'postback':{
+                    console.log(`Handling postbak: ${JSON.stringify(response)}`);
+                    this.fbService.sendTypingOn(response.payload.senderID);
+                    return this.dfService.sendTextQueryToApiAi(this.sessionIds, this.handleDfResponse, response.payload.senderID, response.payload.data);
                     break;
                 }
                 case 'quickReply':{
